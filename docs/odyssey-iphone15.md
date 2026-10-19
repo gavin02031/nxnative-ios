@@ -12,9 +12,11 @@ in-app information screenshots on October 19, 2026:
   397,297,736 bytes; version 1.4.1.
 
 These labels are consistent with the game's existing `v393216` profile.
-They verify version information as shown by the iPhone app, **not** archive
-cryptographic integrity, decrypted content, or availability of `prod.keys`.
-No file contents or keys have been transferred to the developer/build runner.
+The owner also confirmed **having `prod.keys` in the iPhone's Files app**.
+This is a confirmation of *local presence only*, not a verification of key
+correctness or access by this assistant or the build runner. NSP contents,
+NCA signatures and actual decryptability remain unverified.
+No game file contents or keys have been transferred to the build runner.
 Do not require extracting TotK, finding a PC, or redumping Odyssey.
 **Status:** source-level A16 Metal syntax tests pass, but no Odyssey IPA has
 been built, installed or run on this ordinary iPhone 15 from this branch.
@@ -42,6 +44,25 @@ their own game data, an authenticated signed build is made available for
 their device, and the user tests it and shares sanitized runtime logs.
 This is a **design target, not a working feature**; do not represent it as
 available.
+
+## Phone-only NSP preflight (no secrets)
+
+A game-data-free **local browser preflight** is implemented in
+`docs/odyssey-preflight/`. It can let the owner choose the base and update
+NSPs directly from the iPhone's Files picker, check filenames/title IDs
+and the PFS0 archive index, then report structural validity. It reads only
+the small header/index and has a strict Content Security Policy disabling
+network requests. It **never requests, reads or uploads `prod.keys`**.
+The parser is regression-tested with fake files rather than original
+Nintendo game data.
+
+The optional GitHub Pages deployment workflow publishes only this
+preflight's static HTML/JavaScript (not the user's files). **Do not
+claim the webpage is live until its deployment is verified.**
+
+Passing preflight does not prove the actual NCA content can be
+decrypted or that the iOS IPA will work. It is a useful preliminary
+check for phone-only workflow, **not** a secure remote build service.
 
 ## Implemented compatibility changes
 
@@ -74,7 +95,8 @@ available.
 ## Specific next milestones
 
 - [x] Upstream Odyssey **1.4.1** game profile already exists in nxnative.
-- [x] Owner supplied iPhone screenshots showing separate **1.0.0 base** and **1.4.1 update v393216** NSP entries. Archive contents and keys still unverified.
+- [x] Owner supplied iPhone screenshots showing separate **1.0.0 base** and **1.4.1 update v393216** NSP entries and confirmed a local `prod.keys` file. Archive contents/key correctness still unverified.
+- [x] Implemented a client-only NSP-header preflight with synthetic regression tests; no keys requested.
 - [x] A16 renderer BC fallback built as source, plus synthetic decoder tests.
 - [x] A16 native iPhoneOS / Metal 4 compiler check for Odyssey profile.
 - [x] Synthetic BC-to-ASTC quality tests (not assets from Odyssey).
