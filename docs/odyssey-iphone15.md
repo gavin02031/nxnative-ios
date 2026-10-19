@@ -4,8 +4,18 @@
 **Game:** Super Mario Odyssey, native nxnative profile
 `dm/games/0100000000010000/game.tsv`, supported build **1.4.1**
 (`v393216`), with `main + subsdk0 + sdk`.
-**Game inputs:** the owner already dumped Odyssey and has the NSP on their
-iPhone. Do not require extracting TotK, finding a PC, or redumping Odyssey.
+**Game inputs:** The owner confirmed two distinct files on their iPhone via
+in-app information screenshots on October 19, 2026:
+- **Base:** `Super Mario Odyssey [0100000000010000][v0].nsp`;
+  5,611,009,601 bytes; version 1.0.0.
+- **Update:** `SUPER MARIO ODYSSEY [0100000000010800][v393216][Update v1.4.1].nsp`;
+  397,297,736 bytes; version 1.4.1.
+
+These labels are consistent with the game's existing `v393216` profile.
+They verify version information as shown by the iPhone app, **not** archive
+cryptographic integrity, decrypted content, or availability of `prod.keys`.
+No file contents or keys have been transferred to the developer/build runner.
+Do not require extracting TotK, finding a PC, or redumping Odyssey.
 **Status:** source-level A16 Metal syntax tests pass, but no Odyssey IPA has
 been built, installed or run on this ordinary iPhone 15 from this branch.
 
@@ -64,6 +74,7 @@ available.
 ## Specific next milestones
 
 - [x] Upstream Odyssey **1.4.1** game profile already exists in nxnative.
+- [x] Owner supplied iPhone screenshots showing separate **1.0.0 base** and **1.4.1 update v393216** NSP entries. Archive contents and keys still unverified.
 - [x] A16 renderer BC fallback built as source, plus synthetic decoder tests.
 - [x] A16 native iPhoneOS / Metal 4 compiler check for Odyssey profile.
 - [x] Synthetic BC-to-ASTC quality tests (not assets from Odyssey).
