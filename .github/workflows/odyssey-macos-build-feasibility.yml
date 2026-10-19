@@ -1,0 +1,70 @@
+name: Odyssey Mac IPA build feasibility (no game files)
+
+on:
+  push:
+    branches: [feature/a16-texture-compat]
+    paths:
+      - '.github/workflows/odyssey-macos-build-feasibility.yml'
+      - 'scripts/build_ipa_from_nsp.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Measure Xcode, tools and actual build disk space
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect installed tools and runner disk, without keys or NSPs
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          python3 - <<'PY'
+          import os, shutil, subprocess
+          from pathlib import Path
+
+          # User-confirmed file sizes; no private game bytes are stored or read.
+          base_bytes = 5_611_009_601
+          update_bytes = 397_297_736
+          input_gib = (base_bytes + update_bytes) / (1024**3)
+          # nxnative's build_ipa_from_nsp.py checks input bytes + 6 GiB
+          # before extraction and 5 GiB free before IPA packaging.
+          extraction_gib = input_gib + 6
+          conservative_gib = extraction_gib + 5
+          free_gib = shutil.disk_usage(".").free / (1024**3)
+          checks = ["xcodebuild", "xcrun", "xcodegen", "dotnet",
+                    "zstd", "spirv-cross", "zip", "make"]
+          missing = [x for x in checks if not shutil.which(x)]
+          report = [
+            "## Odyssey native iOS IPA workflow feasibility (no game files)",
+            "",
+            "| Check | Result |", "| --- | --- |",
+            f"| User's base + update NSP sizes | {input_gib:.2f} GiB |",
+            f"| nxnative extraction preflight (inputs + 6 GiB) | {extraction_gib:.2f} GiB |",
+            f"| Conservative staging + packaging headroom | {conservative_gib:.2f} GiB |",
+            f"| Actual free disk on macOS runner | {free_gib:.2f} GiB |",
+            f"| Required build commands missing | {', '.join(missing) if missing else 'none'} |",
+            "",
+            "**Scope:** This is a runner feasibility report, not an IPA build.",
+            "A green check means the audit ran, not that the runner has enough disk.",
+            "Actual extraction/shader generation may need *more* capacity.",
+            "No NSPs, prod.keys, derived game code, signing keys, or secret inputs are used.",
+          ]
+          if free_gib < extraction_gib:
+              report.append("**Result: stock macOS runner does not meet nxnative's own initial disk preflight.**")
+          elif free_gib < conservative_gib:
+              report.append("**Result: initial disk check might pass; packaging / temp-space failure is likely.**")
+          else:
+              report.append("**Result: space may be adequate, but no full build or private input handling is verified.**")
+          output = "\n".join(report) + "\n"
+          print(output)
+          if os.environ.get("GITHUB_STEP_SUMMARY"):
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf8") as fp:
+                  fp.write(output)
+          PY
+          echo 'No game files downloaded or built in this workflow.'
