@@ -1,0 +1,129 @@
+name: A16 BC texture compatibility
+
+on:
+  push:
+    branches: [feature/a16-texture-compat]
+    paths:
+      - 'dm/gfx/tex/nvn_bcdec.*'
+      - 'dm/gfx/tex/tests/t_bcdec.c'
+      - 'dm/gfx/tex/tests/Makefile'
+      - 'dm/third_party/bcdec/**'
+      - 'dm/gfx/nvn/nvn_mtl.m'
+      - 'dm/ios/project.yml'
+      - 'dm/games/0100000000010000/**'
+      - 'dm/games/0100F2C0115B6000/**'
+      - 'docs/iphone-15-a16.md'
+      - 'docs/odyssey-iphone15.md'
+      - 'docs/odyssey-preflight/**'
+      - 'dm/tools/a16_bc_to_tga.c'
+      - 'dm/tools/a16_*'
+      - 'dm/tools/tests/test_a16_astc_lab.py'
+      - '.github/workflows/a16-bc-decode.yml'
+  pull_request:
+    paths:
+      - 'dm/gfx/tex/nvn_bcdec.*'
+      - 'dm/gfx/tex/tests/t_bcdec.c'
+      - 'dm/gfx/tex/tests/Makefile'
+      - 'dm/third_party/bcdec/**'
+      - 'dm/gfx/nvn/nvn_mtl.m'
+      - 'dm/ios/project.yml'
+      - 'dm/tools/a16_*'
+      - 'dm/tools/tests/test_a16_astc_lab.py'
+      - '.github/workflows/a16-bc-decode.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bc-decoder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the restored BC decoder with synthetic test blocks
+        run: |
+          set -euxo pipefail
+          cc -std=c11 -O1 -g -Wall -Wextra -fno-omit-frame-pointer \
+            -fsanitize=address,undefined \
+            dm/gfx/tex/tests/t_bcdec.c dm/gfx/tex/nvn_bcdec.c \
+            -o /tmp/test-a16-bc
+          /tmp/test-a16-bc
+      - name: Confirm A16 runtime fallback is linked by host wildcard
+        run: |
+          set -euo pipefail
+          grep -q 'wildcard ../gfx/' dm/host/Makefile
+          grep -q 'nvn_bcdec.h' dm/gfx/nvn/nvn_mtl.m
+          grep -q 'supportsBCTextureCompression' dm/gfx/nvn/nvn_mtl.m
+          grep -q -- '-mcpu=apple-a16' dm/ios/project.yml
+          grep -q 'nvn_bc_decode(t->d.format' dm/gfx/nvn/nvn_mtl.m
+          echo 'Renderer fallback is wired; on-device Metal runtime is still unverified.'
+
+  ios-metal-syntax:
+    name: A16 Metal 4 — ${{ matrix.game_name }} (no game files)
+    runs-on: macos-26
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Odyssey is the active port: it gets first priority, TotK remains
+          # a regression target so shared graphics changes do not break it.
+          - game: '0100000000010000'
+            game_name: 'Super Mario Odyssey'
+          - game: '0100F2C0115B6000'
+            game_name: 'TotK (regression only)'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect the actual iOS toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-path
+      - name: Generate the selected game's public build-profile header
+        run: make -C dm/host GAME=${{ matrix.game }} game_profile
+      - name: Compile entire A16 NVN/Metal renderer for iPhoneOS
+        run: |
+          set -euxo pipefail
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang -target arm64-apple-ios26.0 -isysroot "$sdk" \
+            -mcpu=apple-a16 -std=gnu11 -fobjc-arc -fblocks -fsyntax-only \
+            -Wno-deprecated-declarations -Wno-unused-function \
+            -I dm/gfx/nvn/include -I dm/third_party/vulkan-headers/include \
+            -I dm/games/${{ matrix.game }} \
+            -I dm/host/gen/${{ matrix.game }} \
+            dm/gfx/nvn/nvn_mtl.m
+
+  astc-quality-lab:
+    name: Real ASTC encode + decode fidelity (synthetic only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Arm ASTC encoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y astcenc
+          astcenc -help >/dev/null
+      - name: Build and test private-data-free texture pipeline
+        run: |
+          set -euxo pipefail
+          python3 -m unittest discover -s dm/tools/tests -p test_a16_astc_lab.py -v
+      - name: Report actual compression size and memory estimates
+        run: echo 'ASTC quality lab is an offline prototype, not a TotK asset installer.'
+
+  phone-only-preflight:
+    name: iPhone Files NSP validation (synthetic only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Odyssey PFS0 index safely without ROMs or keys
+        run: node docs/odyssey-preflight/test-nsp-verify.mjs
+      - name: Check page cannot make network requests and never asks for keys
+        run: |
+          set -eu
+          grep -q "connect-src 'none'" docs/odyssey-preflight/index.html
+          grep -q "script-src 'self'" docs/odyssey-preflight/index.html
+          ! grep -i 'type="file".*key' docs/odyssey-preflight/index.html
+          ! grep -E 'fetch\(|XMLHttpRequest|sendBeacon|WebSocket' docs/odyssey-preflight/{index.html,app.mjs,nsp-verify.mjs}
