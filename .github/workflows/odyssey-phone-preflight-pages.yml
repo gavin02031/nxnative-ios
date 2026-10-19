@@ -1,0 +1,45 @@
+name: Publish Odyssey iPhone Preflight
+
+on:
+  push:
+    branches: [feature/a16-texture-compat]
+    paths:
+      - 'docs/odyssey-preflight/**'
+      - '.github/workflows/odyssey-phone-preflight-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: odyssey-phone-preflight-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}odyssey-preflight/
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test the local-only NSP parser before publication
+        run: node docs/odyssey-preflight/test-nsp-verify.mjs
+      - name: Prepare privacy-only static site
+        run: |
+          set -euxo pipefail
+          mkdir -p public/odyssey-preflight
+          cp docs/odyssey-preflight/index.html public/odyssey-preflight/
+          cp docs/odyssey-preflight/{app.mjs,nsp-verify.mjs} public/odyssey-preflight/
+          grep -q "connect-src 'none'" public/odyssey-preflight/index.html
+          ! grep -E 'fetch\(|XMLHttpRequest|sendBeacon|WebSocket' public/odyssey-preflight/*
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deployment
+        uses: actions/deploy-pages@v4
