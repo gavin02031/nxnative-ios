@@ -64,14 +64,32 @@ def read_tga(path: Path) -> tuple[int, int, bytes]:
         raise ValueError("short TGA")
     idlen, cmap, kind = raw[:3]
     width, height, bpp, flags = struct.unpack_from("<HHBB", raw, 12)
-    if cmap or kind != 2 or bpp not in (24, 32) or not width or not height:
-        raise ValueError("unsupported TGA encoding (expected RGB/RGBA uncompressed)")
+    if cmap or kind not in (2, 10) or bpp not in (24, 32) or not width or not height:
+        raise ValueError("unsupported TGA encoding (expected RGB/RGBA truecolor or RLE)")
     nbytes = bpp // 8
     off = 18 + idlen
     n = width * height * nbytes
-    if len(raw) < off + n:
-        raise ValueError("truncated TGA")
-    body = raw[off:off + n]
+    if kind == 2:
+        if len(raw) < off + n:
+            raise ValueError("truncated TGA")
+        body = raw[off:off + n]
+    else:
+        # The real Arm astcenc decoder emits type 10 (RLE) TGA on Linux.
+        # Packets must decode to exactly width * height pixels.
+        b = bytearray()
+        while len(b) < n:
+            if off >= len(raw):
+                raise ValueError("truncated TGA RLE header")
+            packet = raw[off]
+            off += 1
+            count = (packet & 0x7F) + 1
+            size = nbytes if packet & 0x80 else count * nbytes
+            if off + size > len(raw) or len(b) + count * nbytes > n:
+                raise ValueError("truncated/oversized TGA RLE packet")
+            part = raw[off:off + size]
+            off += size
+            b += part * count if packet & 0x80 else part
+        body = bytes(b)
     top = bool(flags & 0x20)
     right = bool(flags & 0x10)
     rgba = bytearray(width * height * 4)
