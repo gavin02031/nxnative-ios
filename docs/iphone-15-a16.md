@@ -1,7 +1,13 @@
 # Experimental iPhone 15 (A16, 6 GB RAM) native game support
 
+> **Current priority: Super Mario Odyssey 1.4.1.** The owner already has
+> an Odyssey NSP on their iPhone and wants a **phone-only** path to a real
+> game-specific IPA. See [Odyssey iPhone 15 plan](odyssey-iphone15.md).
+> Tears of the Kingdom is on hold until Odyssey is playable on the
+> non-Pro iPhone 15. No current source test proves either game playable.
+
 This branch is a **source-code compatibility experiment**, not a playable
-Tears of the Kingdom release. It must not be merged until iPhoneOS compile
+Odyssey or Tears of the Kingdom release. It must not be merged until iPhoneOS compile
 checks and actual device gameplay / memory tests pass.
 
 ## Why stock nxnative does not support this phone
@@ -24,7 +30,15 @@ You do **not** need to set an environment variable to enable decompression
 on a non-BC GPU. `DM_TEST_NO_BC=1` optionally forces the same path on a
 newer device for comparative debugging; do not use it for normal play.
 
-## Why TotK might still run out of memory
+## Memory pressure: Odyssey first, TotK later
+
+Decoded BC textures can consume substantially more RAM than BC blocks.
+For now we are measuring the **Odyssey 1.4.1** port, not building TotK.
+Do not alter game ROM assets or promise that the 6 GB iPhone 15 can run
+either port without a real on-device profile. For the active Odyssey plan,
+see [odyssey-iphone15.md](odyssey-iphone15.md).
+
+### Future TotK constraints
 
 Decoded textures often take **2–8 times** as much memory as their BC blocks.
 A 5 GB *virtual reservation* in TotK's profile is not 5 GB of installed RAM
@@ -153,11 +167,13 @@ No commercial game files are used in automated checks.
   and checks `nvn_mtl.m` syntax for arm64 iPhoneOS using Xcode 26/Metal 4.
   **Passing these tests does not mean the game boots on an iPhone.**
 
-## First private iPhone experiment (after Xcode source builds pass)
+## First private iPhone experiment (after source checks pass)
 
-1. On a personally controlled macOS/Xcode build machine, use your
-   personally dumped TotK base game and cumulative 1.4.3 update, and
-   `scripts/build_ipa_from_nsp.py`, following the official nxnative guide.
+1. **Odyssey 1.4.1 is first**, using the owner's existing NSP(s).
+   Build privately through the existing nxnative per-game tooling on
+   trusted macOS/Xcode infrastructure. There is not yet an available
+   secure iPhone-only file upload, builder or signing flow; creating
+   that path is a prerequisite to asking the player to test.
    Do **not** upload NSPs, ROMs, keys, extracted files or the compiled game
    IPA to a public repo, PR, issue or Actions artifact.
 2. Sign/sideload the resulting game-specific IPA for your device using an
@@ -184,7 +200,8 @@ No commercial game files are used in automated checks.
   Source-only CI cannot produce a personalized, verified game IPA without
   the private game-derived inputs and signing.
 
-**Success condition:** A signed, privately built TotK 1.4.3 app reaches real
-in-game rendered frames on an ordinary iPhone 15, stays under the app memory
-limit during a sustained gameplay scene, and produces reproducible logs.
-This has not happened or been verified in this branch.
+**Primary success condition:** A privately built and signed **Odyssey
+1.4.1** app reaches actual rendered gameplay on an ordinary iPhone 15,
+fits within the app memory limit during a sustained scene and provides
+reproducible logs. **This has not happened or been verified.** TotK
+1.4.3 is secondary and remains unverified as well.
