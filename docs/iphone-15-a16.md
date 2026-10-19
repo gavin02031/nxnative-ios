@@ -40,6 +40,74 @@ cannot be applied to TotK unchanged. Need to inventory TotK texture formats,
 resources, shader assumptions, and games' runtime-created compressed textures
 before changing assets. Only use personal game files, locally.
 
+## Texture quality lab (Windows PC friendly, test-only)
+
+The offline lab is **not a replacement pack builder yet**. It lets us
+measure exactly how much video memory and image quality can be saved on a
+single *linear, deswizzled BC mip* without uploading your game dumps. It
+does not read NSPs, TotK archives, BFRES/BNTX files, or block-linear
+textures directly, and it does not change the game's texture bindings.
+
+`dm/tools/a16_bc_to_tga.c` decodes a private BC1/2/3/4/5/7 mip to TGA,
+optionally downsampling colours. `dm/tools/a16_astc_lab.py` calls
+Arm's independently installed `astcenc`, decodes the resulting ASTC
+again, checks actual fidelity in PSNR dB, and writes a JSON manifest
+with hashes, format, dimensions and size. A result below the requested
+quality gate is rejected. Signed BC4/BC5, BC6H, layers/cubemaps,
+dynamically generated textures, mip chains, and game asset patching
+need separate handling before device use.
+
+**On Windows**, install Python 3, a C compiler (MSYS2 MinGW GCC or Clang),
+and an official Windows build of
+[Arm astcenc](https://github.com/ARM-software/astc-encoder).
+From the repository root, using PowerShell with `gcc` on `PATH`:
+
+```powershell
+gcc -O2 -std=c11 dm/tools/a16_bc_to_tga.c dm/gfx/tex/nvn_bcdec.c -lm -o a16_bc_to_tga.exe
+python dm/tools/a16_astc_lab.py --input "C:\\private\\linear-bc-mip.bin" --format 0x44 --width 1024 --height 1024 --kind world --tier balanced --scale 1 --preset thorough --min-psnr 30 --decoder ".\\a16_bc_to_tga.exe" --encoder "C:\\Tools\\astcenc.exe" --out "C:\\private\\world-texture.astc"
+```
+
+Replace the paths and dimensions with your own **verified single-mip
+linear BC data**. A normal TotK ROM dump is *not* that input; texture
+extraction/deswizzling is a future pipeline step. Keep the source,
+`.astc` and generated `.json` off GitHub.
+
+Quality defaults, chosen to preserve HUD/text and normal detail:
+
+| Asset class | High quality | Balanced (default) | Smaller |
+| --- | --- | --- | --- |
+| World / scenery | ASTC 4x4, 8 bpp | ASTC 5x5, 5.12 bpp | ASTC 6x6, 3.56 bpp |
+| Normal maps | ASTC 4x4 | ASTC 4x4 | ASTC 5x5 |
+| UI / text | ASTC 4x4 | ASTC 4x4 | ASTC 4x4 |
+
+The CLI only permits `--scale 2` or `4` for world textures; text and
+normal maps stay at full size. The downscale option applies an averaged
+image reduction (sRGB averaging is done in linear light). Compression
+uses Arm's official encoder; it is not a homemade ASTC codec.
+
+**Illustrative unpadded GPU payload sizes for a 1024x1024 image** (a
+real Metal allocation can differ due to alignment, residency, mips and
+other GPU allocations):
+
+- Decoded RGBA8: 4 MiB
+- ASTC 4x4: 1 MiB
+- ASTC 5x5: about 0.64 MiB
+- ASTC 6x6: about 0.45 MiB
+- Downscale to 512x512 + ASTC 5x5: about 0.16 MiB
+
+These are per-mip storage sizes, *not* memory budget predictions for the
+whole game. BC3 source data itself is also 1 MiB at 1024x1024; an
+ASTC 4x4 conversion does not magically beat BC3, but it is readable by
+your iPhone's GPU while saving RAM versus decoded RGBA8.
+
+`.github/workflows/a16-bc-decode.yml` tests this offline workflow with
+only synthetic coloured BC blocks, real `astcenc` encoding/decoding,
+dimensions, rejection rules and quality measurement. This does **not**
+prove that any resulting texture can be used inside TotK: the next
+milestone is inventorying TotK's assets and wiring a private
+asset-specific ASTC conversion + rewritten format metadata, while
+avoiding unsafe replacement of runtime-created BC surfaces.
+
 ## Tests
 
 No commercial game files are used in automated checks.
