@@ -108,6 +108,41 @@ milestone is inventorying TotK's assets and wiring a private
 asset-specific ASTC conversion + rewritten format metadata, while
 avoiding unsafe replacement of runtime-created BC surfaces.
 
+## Super Mario Odyssey on regular iPhone 15 — no PC required from the player
+
+Super Mario Odyssey is **already in nxnative**. The game profile is
+`dm/games/0100000000010000/game.tsv` for update **1.4.1**. The same
+`supportsBCTextureCompression` fallback should work across this profile
+and TotK, which have different game-specific native executables.
+
+The GitHub workflow now compiles the Metal renderer separately for
+**Super Mario Odyssey (0100000000010000)** and **Tears of the Kingdom
+(0100F2C0115B6000)**, with the A16 CPU baseline and actual iPhoneOS SDK.
+These checks use only public source and synthetic texture data; they
+do not use the user's NSPs, build finished game IPAs, or verify gameplay.
+
+**Phone-only user preference:** Do not require the user to install
+Windows/PC tools, run scripts, or extract game assets on a computer.
+Repository edits, source verification, and CI compilation happen remotely.
+The player has previously confirmed a 5.61-GB Odyssey NSP accessible
+from their iPhone, but availability of `prod.keys` on the phone is
+not confirmed. This project does **not** have a secure, completed
+iPhone-only build system that accepts the game dump, produces rewritten,
+signed iOS code, and returns an installable IPA.
+
+nxnative's game-specific IPA builder still requires the player's matching
+NSP base/update, console-specific keys, a macOS/Xcode toolchain somewhere
+(not necessarily a PC the user touches), and a signing/sideloading process.
+No game dumps, decrypted executables, or keys should be committed to a
+public repository or put into public GitHub Actions artifacts.
+
+**Next engineering milestones:** (1) validate the Odyssey game profile
+and shader/asset pipeline against private user-owned files in a secure
+remote macOS environment, (2) add correctly verified ASTC texture
+replacements for A16, (3) build and sign privately, and (4) capture
+on-device iPhone 15 graphics and memory logs. Do not describe the
+current A16 compatibility branch as a playable Odyssey build.
+
 ## Tests
 
 No commercial game files are used in automated checks.
