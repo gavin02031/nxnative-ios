@@ -13,6 +13,7 @@ on:
       - 'dm/games/0100000000010000/**'
       - 'dm/games/0100F2C0115B6000/**'
       - 'docs/iphone-15-a16.md'
+      - 'docs/odyssey-iphone15.md'
       - 'dm/tools/a16_bc_to_tga.c'
       - 'dm/tools/a16_*'
       - 'dm/tools/tests/test_a16_astc_lab.py'
@@ -65,10 +66,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - game: '0100F2C0115B6000'
-            game_name: 'TotK'
+          # Odyssey is the active port: it gets first priority, TotK remains
+          # a regression target so shared graphics changes do not break it.
           - game: '0100000000010000'
             game_name: 'Super Mario Odyssey'
+          - game: '0100F2C0115B6000'
+            game_name: 'TotK (regression only)'
     steps:
       - uses: actions/checkout@v4
       - name: Inspect the actual iOS toolchain
