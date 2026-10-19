@@ -14,6 +14,7 @@ on:
       - 'dm/games/0100F2C0115B6000/**'
       - 'docs/iphone-15-a16.md'
       - 'docs/odyssey-iphone15.md'
+      - 'docs/odyssey-preflight/**'
       - 'dm/tools/a16_bc_to_tga.c'
       - 'dm/tools/a16_*'
       - 'dm/tools/tests/test_a16_astc_lab.py'
@@ -110,3 +111,19 @@ jobs:
           python3 -m unittest discover -s dm/tools/tests -p test_a16_astc_lab.py -v
       - name: Report actual compression size and memory estimates
         run: echo 'ASTC quality lab is an offline prototype, not a TotK asset installer.'
+
+  phone-only-preflight:
+    name: iPhone Files NSP validation (synthetic only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Odyssey PFS0 index safely without ROMs or keys
+        run: node docs/odyssey-preflight/test-nsp-verify.mjs
+      - name: Check page cannot make network requests and never asks for keys
+        run: |
+          set -eu
+          grep -q "connect-src 'none'" docs/odyssey-preflight/index.html
+          grep -q "script-src 'self'" docs/odyssey-preflight/index.html
+          ! grep -i 'type="file".*key' docs/odyssey-preflight/index.html
+          ! grep -E 'fetch\(|XMLHttpRequest|sendBeacon|WebSocket' docs/odyssey-preflight/{index.html,app.mjs,nsp-verify.mjs}
