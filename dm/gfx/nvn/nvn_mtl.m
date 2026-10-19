@@ -2721,7 +2721,7 @@ static id<MTLTexture> tex_by_id(int tid) {   // Caller holds g_rmu
         if (!r.has_v) memset(&r.v, 0, sizeof r.v);
         uint32_t pf = (uint32_t)base.pixelFormat; uint8_t swz[4];
         if (r.v.set_format && !(nvn_fmt_to_mtl(r.v.format, &pf, swz) && pf)) pf = (uint32_t)base.pixelFormat;
-        if (r.v.set_format && bc_unpack(rp->t.d.format, NULL, NULL) && nvn_fmt_bc(r.v.format)) pf = (uint32_t)base.pixelFormat;
+        if (r.v.set_format && no_bc() && nvn_fmt_bc(rp->t.d.format) && nvn_fmt_bc(r.v.format)) pf = (uint32_t)base.pixelFormat;
         if (r.v.set_format && nvn_fmt_bc(rp->t.d.format) && !nvn_fmt_bc(r.v.format)) {   // the raw blocks of a BC texture through an uncompressed view (see rt_view_fmt): Metal has no such view
             RED_ONCE(86, "压缩格式贴图的原始块视图（NVN 格式 %#x → 视图 %#x）Metal 建不出：按空槽", rp->t.d.format, r.v.format);
             return nil;
