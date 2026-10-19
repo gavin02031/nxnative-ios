@@ -48,3 +48,28 @@ jobs:
           grep -q -- '-mcpu=apple-a16' dm/ios/project.yml
           grep -q 'nvn_bc_decode(t->d.format' dm/gfx/nvn/nvn_mtl.m
           echo 'Renderer fallback is wired; on-device Metal runtime is still unverified.'
+
+  ios-metal-syntax:
+    name: iPhoneOS Metal 4 source check (no game files)
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect the actual iOS toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-path
+      - name: Generate nonproprietary TotK build-profile header
+        run: make -C dm/host GAME=0100F2C0115B6000 game_profile
+      - name: Compile entire A16 NVN/Metal renderer for iPhoneOS
+        run: |
+          set -euxo pipefail
+          sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          xcrun --sdk iphoneos clang -target arm64-apple-ios26.0 -isysroot "$sdk" \
+            -mcpu=apple-a16 -std=gnu11 -fobjc-arc -fblocks -fsyntax-only \
+            -Wno-deprecated-declarations -Wno-unused-function \
+            -I dm/gfx/nvn/include -I dm/third_party/vulkan-headers/include \
+            -I dm/games/0100F2C0115B6000 \
+            -I dm/host/gen/0100F2C0115B6000 \
+            dm/gfx/nvn/nvn_mtl.m
