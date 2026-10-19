@@ -68,3 +68,19 @@ jobs:
                   fp.write(output)
           PY
           echo 'No game files downloaded or built in this workflow.'
+
+      - name: Install missing Odyssey IPA build tools (no game data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen spirv-cross
+          python3 -m venv "$RUNNER_TEMP/odyssey-venv"
+          "$RUNNER_TEMP/odyssey-venv/bin/python" -m pip install --disable-pip-version-check lz4 capstone fonttools
+          xcodegen --version
+          command -v spirv-cross
+          "$RUNNER_TEMP/odyssey-venv/bin/python" -c 'import lz4.frame, capstone, fontTools; print("Odyssey Python build prerequisites import successfully")'
+          echo "dotnet SDK: $(dotnet --version)"
+          echo "Post-install disk free (GiB): $(df -k . | awk 'NR==2 {printf "%.2f", $4/1048576}')"
+      - name: Declare exact scope
+        run: |
+          echo 'No NSP or prod.keys data were accessed. This workflow only installs and checks build tools.'
