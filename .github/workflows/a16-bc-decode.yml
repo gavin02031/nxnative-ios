@@ -1,0 +1,47 @@
+name: A16 BC texture compatibility
+
+on:
+  push:
+    branches: [feature/a16-texture-compat]
+    paths:
+      - 'dm/gfx/tex/nvn_bcdec.*'
+      - 'dm/gfx/tex/tests/t_bcdec.c'
+      - 'dm/gfx/tex/tests/Makefile'
+      - 'dm/third_party/bcdec/**'
+      - 'dm/gfx/nvn/nvn_mtl.m'
+      - '.github/workflows/a16-bc-decode.yml'
+  pull_request:
+    paths:
+      - 'dm/gfx/tex/nvn_bcdec.*'
+      - 'dm/gfx/tex/tests/t_bcdec.c'
+      - 'dm/gfx/tex/tests/Makefile'
+      - 'dm/third_party/bcdec/**'
+      - 'dm/gfx/nvn/nvn_mtl.m'
+      - '.github/workflows/a16-bc-decode.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bc-decoder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the restored BC decoder with synthetic test blocks
+        run: |
+          set -euxo pipefail
+          cc -std=c11 -O1 -g -Wall -Wextra -fno-omit-frame-pointer \
+            -fsanitize=address,undefined \
+            dm/gfx/tex/tests/t_bcdec.c dm/gfx/tex/nvn_bcdec.c \
+            -o /tmp/test-a16-bc
+          /tmp/test-a16-bc
+      - name: Confirm A16 runtime fallback is linked by host wildcard
+        run: |
+          set -euo pipefail
+          grep -q 'wildcard ../gfx/' dm/host/Makefile
+          grep -q 'nvn_bcdec.h' dm/gfx/nvn/nvn_mtl.m
+          grep -q 'supportsBCTextureCompression' dm/gfx/nvn/nvn_mtl.m
+          grep -q 'nvn_bc_decode(t->d.format' dm/gfx/nvn/nvn_mtl.m
+          echo 'Renderer fallback is wired; on-device Metal runtime is still unverified.'
