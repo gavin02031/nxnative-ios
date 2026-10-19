@@ -10,6 +10,10 @@ on:
       - 'dm/third_party/bcdec/**'
       - 'dm/gfx/nvn/nvn_mtl.m'
       - 'dm/ios/project.yml'
+      - 'dm/games/0100000000010000/**'
+      - 'dm/games/0100F2C0115B6000/**'
+      - 'docs/iphone-15-a16.md'
+      - 'dm/tools/a16_bc_to_tga.c'
       - 'dm/tools/a16_*'
       - 'dm/tools/tests/test_a16_astc_lab.py'
       - '.github/workflows/a16-bc-decode.yml'
@@ -54,9 +58,17 @@ jobs:
           echo 'Renderer fallback is wired; on-device Metal runtime is still unverified.'
 
   ios-metal-syntax:
-    name: iPhoneOS Metal 4 source check (no game files)
+    name: A16 Metal 4 — ${{ matrix.game_name }} (no game files)
     runs-on: macos-26
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - game: '0100F2C0115B6000'
+            game_name: 'TotK'
+          - game: '0100000000010000'
+            game_name: 'Super Mario Odyssey'
     steps:
       - uses: actions/checkout@v4
       - name: Inspect the actual iOS toolchain
@@ -64,8 +76,8 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
           xcrun --sdk iphoneos --show-sdk-path
-      - name: Generate nonproprietary TotK build-profile header
-        run: make -C dm/host GAME=0100F2C0115B6000 game_profile
+      - name: Generate the selected game's public build-profile header
+        run: make -C dm/host GAME=${{ matrix.game }} game_profile
       - name: Compile entire A16 NVN/Metal renderer for iPhoneOS
         run: |
           set -euxo pipefail
@@ -74,8 +86,8 @@ jobs:
             -mcpu=apple-a16 -std=gnu11 -fobjc-arc -fblocks -fsyntax-only \
             -Wno-deprecated-declarations -Wno-unused-function \
             -I dm/gfx/nvn/include -I dm/third_party/vulkan-headers/include \
-            -I dm/games/0100F2C0115B6000 \
-            -I dm/host/gen/0100F2C0115B6000 \
+            -I dm/games/${{ matrix.game }} \
+            -I dm/host/gen/${{ matrix.game }} \
             dm/gfx/nvn/nvn_mtl.m
 
   astc-quality-lab:
