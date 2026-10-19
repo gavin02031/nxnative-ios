@@ -24,6 +24,35 @@ been built, installed or run on this ordinary iPhone 15 from this branch.
 TotK is postponed until Odyssey works. Shared generic renderer fixes are
 welcome, but milestones are evaluated against **Odyssey first**.
 
+## GitHub-hosted macOS IPA build feasibility (verified October 19, 2026)
+
+A **real** macOS 26 GitHub Actions runner executed the no-game-data
+[Odyssey Mac build feasibility workflow](../../.github/workflows/odyssey-macos-build-feasibility.yml):
+
+- Existing owner's Odyssey NSP sizes: 5.60 GiB combined.
+- nxnative's own early extraction disk preflight: about 11.60 GiB.
+- Conservative initial staging + packaging planning estimate: 16.60 GiB.
+- Actual runner **reported 94.7–95.7 GiB free** in two CI executions,
+  and ~95.66 GiB after installing tools. This is an observation, not a
+  guaranteed allocation for all future jobs.
+- Xcode, `.NET SDK 10.0.401`, `zstd` etc. were already available.
+- `brew install xcodegen spirv-cross` succeeded on the runner.
+- Python virtualenv installed and imported `lz4`, `capstone`,
+  `fontTools`; no original game files, private keys or derived game code.
+- **Both resource audit and dependencies install smoke test passed.**
+  This supports attempting the full build on GitHub macOS runners instead
+  of asking the player to use any Windows PC.
+
+**Blocking work before a real IPA:** Provision isolated **private**
+storage/import for the owner's full NSPs, isolate `prod.keys` in a
+restricted secret-handling flow, and grant a manual, approved build job
+temporary read access. The fork is **public** and is not a safe place
+for those files, nor should they appear in any Actions logs, caches,
+PRs or artifacts. Apple signing and iPhone 15 runtime still need
+verification. The existing stock full-IPA builder takes local file
+paths; it cannot read from iPhone Files or Google Drive without a
+separately provisioned secure transfer mechanism.
+
 ## Phone-only player workflow — non-negotiable
 
 The player wants to use their **iPhone only**. Do not assign them a Windows,
