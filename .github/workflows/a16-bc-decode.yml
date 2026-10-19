@@ -9,6 +9,7 @@ on:
       - 'dm/gfx/tex/tests/Makefile'
       - 'dm/third_party/bcdec/**'
       - 'dm/gfx/nvn/nvn_mtl.m'
+      - 'dm/ios/project.yml'
       - '.github/workflows/a16-bc-decode.yml'
   pull_request:
     paths:
@@ -17,6 +18,7 @@ on:
       - 'dm/gfx/tex/tests/Makefile'
       - 'dm/third_party/bcdec/**'
       - 'dm/gfx/nvn/nvn_mtl.m'
+      - 'dm/ios/project.yml'
       - '.github/workflows/a16-bc-decode.yml'
   workflow_dispatch:
 
@@ -43,5 +45,6 @@ jobs:
           grep -q 'wildcard ../gfx/' dm/host/Makefile
           grep -q 'nvn_bcdec.h' dm/gfx/nvn/nvn_mtl.m
           grep -q 'supportsBCTextureCompression' dm/gfx/nvn/nvn_mtl.m
+          grep -q -- '-mcpu=apple-a16' dm/ios/project.yml
           grep -q 'nvn_bc_decode(t->d.format' dm/gfx/nvn/nvn_mtl.m
           echo 'Renderer fallback is wired; on-device Metal runtime is still unverified.'
