@@ -1,0 +1,35 @@
+name: Odyssey external assets packaging static tests
+on:
+  push:
+    branches:
+      - feature/odyssey-ondevice-nsp-import
+    paths:
+      - 'dm/ios/tools/build_ipa.sh'
+      - 'dm/ios/Sources/main.m'
+      - 'docs/odyssey-ondevice-nsp-import.md'
+      - '.github/workflows/odyssey-external-romfs-static.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  external-romfs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate optional external RomFS packaging and source boot fallback
+        run: |
+          set -euo pipefail
+          bash -n dm/ios/tools/build_ipa.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          script=Path('dm/ios/tools/build_ipa.sh').read_text()
+          app=Path('dm/ios/Sources/main.m').read_text()
+          assert 'DM_EXTERNAL_ROMFS:-0' in script
+          assert 'omit game assets from IPA' in script
+          assert 'cp -cR "$ROMFS" "$A/romfs"' in script
+          assert '[doc stringByAppendingPathComponent:@"romfs"]' in app
+          assert 'DM_ROMFS' in app
+          print("PASS: build flag is opt-in, normal bundled RomFS remains default, and external Documents/romfs boot lookup exists.")
+          print("Static checks only; no signed IPA, NSPs or console keys are involved.")
+          PY
