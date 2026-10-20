@@ -2,7 +2,7 @@
 # Build one unsigned all-in-one IPA: the rewritten modules compiled into the executable, iOS shader libraries, and the game files (RomFS) at DmIOS.app/romfs. At install time a signing tool (AltStore / Sideloadly etc.) swaps in your own certificate and bundle ID.
 # Prerequisites: the rewriter (patched directory) and the iOS shader build (IOSOUT) have been run as in the README; Xcode and xcodegen are installed.
 # Usage: dm/ios/tools/build_ipa.sh [output.ipa]; environment: GAME=game profile (dm/games/<base game title ID>, or one in DM_GAMES_DIR; required), W=the game's work folder (required: <NSP folder>/<title ID>-work, never the home folder), PATCHED / ROMFS / MSL_IOS can each be overridden
-#   AOC=add-on content directory (default $W/data/aoc; when it exists it goes to DmIOS.app/aoc/<index>/; an empty string = none)
+#   DM_EXTERNAL_ROMFS=1 produces a thin IPA without RomFS game assets; Documents/romfs is required on-device (NSP import is not implemented yet)\n#   AOC=add-on content directory (default $W/data/aoc; when it exists it goes to DmIOS.app/aoc/<index>/; an empty string = none)
 #   The app name is the game name in the base NSP's control data ($W/data/v0/control.nacp, else the one next to the RomFS), the app version is the display version in the packed game's control data (the one next to the RomFS:
 #   nx_extract saves the update's there when an update is packed, else the base game's), the bundle ID is org.nxnative.<base game title ID in lowercase> (DM_DISPLAY_NAME / DM_APP_VERSION / DM_BUNDLE_ID override them);
 #   the IPA name, code modules, RomFS marker and shader tables come from the game profile
@@ -74,7 +74,15 @@ APP=$DD/Build/Products/Release-iphoneos/DmIOS.app; [ -d "$APP" ] || APP=$(grep -
 t "assemble Payload (app + RomFS)"
 rm -rf "$O/Payload" && mkdir -p "$O/Payload" && cp -cR "$APP" "$O/Payload/DmIOS.app" || die "copy app"
 A=$O/Payload/DmIOS.app; rm -rf "$A/_CodeSignature" "$A/embedded.mobileprovision"
-cp -cR "$ROMFS" "$A/romfs" || die "copy RomFS"
+# External-data mode produces a small installable app with the already-compiled
+# native executable and Metal shaders, but not the owner's copyrighted RomFS.
+# The current iOS runtime already accepts Documents/romfs; importing original
+# NSPs and converting them on-device is a separate, pending native feature.
+if [ "${DM_EXTERNAL_ROMFS:-0}" = "1" ]; then
+  t "external RomFS mode: omit game assets from IPA (Documents/romfs required at first boot)"
+else
+  cp -cR "$ROMFS" "$A/romfs" || die "copy RomFS"
+fi
 # Add-on content: the RomFS extracted from the player's DLC NSPs, one subdirectory per index (the app sets DM_AOC_DIR at launch; the host reports them as owned and mounts them from it)
 if [ -n "$AOC" ] && [ -d "$AOC" ]; then cp -cR "$AOC" "$A/aoc" || die "copy add-on content"; t "add-on content: $(ls "$AOC" | tr '\n' ' ')"; fi
 
