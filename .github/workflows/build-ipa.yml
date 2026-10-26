@@ -1,0 +1,150 @@
+# Manually build an unsigned IPA using an encrypted 7z of your own game files.
+# The public repository must NEVER contain NSPs, keys or a plaintext IPA artifact.
+name: Build unsigned IPA from private game archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-ipa-build
+  cancel-in-progress: false
+
+jobs:
+  build-ipa:
+    # macOS/Apple Silicon with Xcode is required; this runner has limited disk.
+    runs-on: macos-26
+    timeout-minutes: 360
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify private-input secrets are configured
+        env:
+          GAME_ARCHIVE_URL: ${{ secrets.NXNATIVE_ARCHIVE_URL }}
+          ARCHIVE_PASSWORD: ${{ secrets.NXNATIVE_ARCHIVE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GAME_ARCHIVE_URL" || -z "$ARCHIVE_PASSWORD" ]]; then
+            echo "::error::Set NXNATIVE_ARCHIVE_URL and NXNATIVE_ARCHIVE_PASSWORD in repository Actions secrets. See docs/github-ipa-build.md."
+            exit 1
+          fi
+          if [[ "$GAME_ARCHIVE_URL" != https://* ]]; then
+            echo "::error::NXNATIVE_ARCHIVE_URL must be an HTTPS direct-download URL."
+            exit 1
+          fi
+
+      - name: Install build tools
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          brew install xcodegen zstd spirv-cross glslang sevenzip
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8b2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Python requirements
+        run: |
+          python -m pip install lz4 capstone fonttools "backports.zstd; python_version < '3.14'"
+
+      - name: Download private encrypted game archive
+        env:
+          GAME_ARCHIVE_URL: ${{ secrets.NXNATIVE_ARCHIVE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/nxnative-private"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            --output "$RUNNER_TEMP/nxnative-private/input.7z" "$GAME_ARCHIVE_URL"
+          test -s "$RUNNER_TEMP/nxnative-private/input.7z"
+
+      - name: Decrypt and validate game inputs
+        env:
+          ARCHIVE_PASSWORD: ${{ secrets.NXNATIVE_ARCHIVE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/nxnative-private/files"
+          7zz x -y -bd "-p$ARCHIVE_PASSWORD" \
+            "-o$RUNNER_TEMP/nxnative-private/files" "$RUNNER_TEMP/nxnative-private/input.7z" >/dev/null
+          test -s "$RUNNER_TEMP/nxnative-private/files/prod.keys" || {
+            echo "::error::The encrypted 7z must contain prod.keys at its root."
+            exit 1
+          }
+          test -d "$RUNNER_TEMP/nxnative-private/files/game" || {
+            echo "::error::The encrypted 7z must contain a game/ directory with one game."
+            exit 1
+          }
+          if ! find "$RUNNER_TEMP/nxnative-private/files/game" -maxdepth 1 -type f \
+              \( -iname '*.nsp' -o -iname '*.xci' -o -iname '*.nsz' -o -iname '*.xcz' \) | grep -q .; then
+            echo "::error::No NSP/XCI/NSZ/XCZ files found directly in game/."
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/nxnative-private/input.7z"
+          echo "Validated game inputs without uploading or displaying keys."
+
+      - name: Check available disk before build
+        run: |
+          set -euo pipefail
+          df -h "$RUNNER_TEMP"
+          # The upstream script separately enforces its own work-volume disk minimum.
+          available_kb=$(df -Pk "$RUNNER_TEMP" | awk 'END {print $4}')
+          if (( available_kb < 7 * 1024 * 1024 )); then
+            echo "::error::Insufficient space on standard GitHub macOS runner; use a macOS runner with more storage."
+            exit 1
+          fi
+
+      - name: Build unsigned iOS IPA
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -euo pipefail
+          python scripts/build_ipa_from_nsp.py \
+            "$RUNNER_TEMP/nxnative-private/files/game" \
+            -k "$RUNNER_TEMP/nxnative-private/files/prod.keys" \
+            --platform ios --no-keep-extracted --gpu none --progress lines
+
+      - name: Encrypt finished IPA before artifact upload
+        env:
+          ARCHIVE_PASSWORD: ${{ secrets.NXNATIVE_ARCHIVE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          game_dir="$RUNNER_TEMP/nxnative-private/files/game"
+          ipa=$(find "$game_dir" -maxdepth 1 -type f -name '*.ipa' -print -quit)
+          if [[ -z "$ipa" || ! -s "$ipa" ]]; then
+            echo "::error::No built IPA found in game/."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/nxnative-output"
+          # Encrypt both contents and filenames; never upload the unencrypted IPA.
+          7zz a -t7z -mhe=on -mx=0 -bd "-p$ARCHIVE_PASSWORD" \
+            "$RUNNER_TEMP/nxnative-output/unsigned-ipa.7z" "$ipa" >/dev/null
+          test -s "$RUNNER_TEMP/nxnative-output/unsigned-ipa.7z"
+
+      - name: Download encrypted IPA
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nxnative-unsigned-ipa-encrypted
+          path: ${{ runner.temp }}/nxnative-output/unsigned-ipa.7z
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Clean local decrypted files
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/nxnative-private" "$RUNNER_TEMP/nxnative-output"
